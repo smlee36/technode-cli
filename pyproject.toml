@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "technode"
+version = "0.1.0"
+description = "TechNode CLI — run inference on TechNode's compressed open-model GPU grid (RunPod-compatible)."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "TechNode", email = "smlee3636@gmail.com" }]
+keywords = ["llm", "inference", "gpu", "runpod", "quantized", "technode"]
+# Zero runtime dependencies — pure stdlib (urllib). Keeps `pip install technode`
+# light and lets the same client run inside minimal/embedded Python.
+dependencies = []
+
+[project.urls]
+Homepage = "https://technode.network"
+"API docs" = "https://technode.network/developers"
+
+[project.scripts]
+technode = "technode.cli:main"
+
+[tool.setuptools]
+packages = ["technode"]
