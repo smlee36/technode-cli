@@ -4,7 +4,7 @@ Run inference on **TechNode** — a GPU grid serving *compressed* open models
 (Qwen, Granite, gpt-oss, Devstral, Gemma, EXAONE…) at consumer-GPU prices.
 
 ```bash
-pip install technode
+pip install technode-cli       # the command is `technode`
 technode login                 # paste your tn_test_… key (or set TECHNODE_API_KEY)
 technode models                # list the compressed catalog
 technode infer "Explain quantization in one line." --model qwen2.5-7b

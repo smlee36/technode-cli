@@ -3,7 +3,9 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "technode"
+# Distribution name on PyPI. The console command is still `technode`
+# (see [project.scripts]); PyPI disallows the bare name "technode".
+name = "technode-cli"
 version = "0.1.0"
 description = "TechNode CLI — run inference on TechNode's compressed open-model GPU grid (RunPod-compatible)."
 readme = "README.md"
