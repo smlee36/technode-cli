@@ -21,6 +21,22 @@ Zero dependencies — pure Python stdlib, runs anywhere Python ≥3.8 does.
 | `technode models [--json]` | List available models (id, quantization, role). |
 | `technode infer PROMPT [-m MODEL] [-n MAX_TOKENS] [-t TEMP] [--json] [-q]` | Text generation. `-` or piped stdin reads the prompt from stdin. |
 | `technode whoami` | Show the active key (masked) + endpoint. |
+| `technode gpu lease/list/status/release` | Rent a whole GPU (Jupyter lab session). |
+
+## Become a provider (share your GPU)
+
+Got an NVIDIA Linux box? Join the grid and serve models — **outbound-only, works
+behind any NAT** (no Tailscale, no inbound ports):
+
+```bash
+technode provider register --gpu "RTX 4090" --vram 24
+technode provider serve --llama-server /path/to/llama-server   # pull-mode worker
+technode provider status
+```
+
+`serve` polls the broker for jobs it can run, executes them on your GPU, and
+returns the results. Needs a llama.cpp `llama-server` binary (CUDA build for
+NVIDIA) and operator approval before it receives live jobs.
 
 ## Configuration
 

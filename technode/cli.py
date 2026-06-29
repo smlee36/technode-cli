@@ -403,6 +403,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     gpu.set_defaults(func=lambda a: (gpu.print_help() or 0))
 
+    # provider: run a GPU as a serving node (separate concern from consuming)
+    from . import provider as _provider
+    _provider.add_parser(sub)
+
     return p
 
 
