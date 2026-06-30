@@ -30,8 +30,25 @@ behind any NAT** (no Tailscale, no inbound ports):
 
 ```bash
 technode provider register --gpu "RTX 4090" --vram 24
-technode provider serve --llama-server /path/to/llama-server   # pull-mode worker
+technode provider serve --llama-server /path/to/llama-server   # pull-mode worker (llama.cpp)
 technode provider status
+```
+
+### Data-center / IDC GPUs (B200·B300·H100, multi-GPU)
+
+For datacenter GPU nodes, use the **vLLM backend** with tensor-parallel across GPUs:
+
+```bash
+pip install -U technode-cli vllm        # vLLM needs CUDA GPUs + drivers
+technode provider register --gpu "8x B200" --vram 1440
+technode provider serve --backend vllm --tp 8     # 8-GPU tensor-parallel
+technode provider install --backend vllm --tp 8   # → systemd unit (boot persistence)
+```
+
+One-shot onboarding (detects GPUs, installs, registers, serves):
+
+```bash
+curl -fsSL https://technode.network/idc.sh | bash -s -- --name "IDC-node-01"
 ```
 
 `serve` polls the broker for jobs it can run, executes them on your GPU, and

@@ -156,30 +156,48 @@ def _ensure_pc_serve():
     return PC_SERVE_PATH
 
 
+def _vllm_available():
+    try:
+        import importlib.util
+        return importlib.util.find_spec("vllm") is not None
+    except Exception:
+        return False
+
+
 def cmd_serve(args):
     cfg = _load_cfg()
     if not cfg.get("register_token"):
         _die("not registered. Run `technode provider register` first.")
-    llama = _find_llama(args.llama_server)
-    if not llama:
-        _die("llama-server not found.\n"
-             "        Point to it:  technode provider serve --llama-server /path/to/llama-server\n"
-             "        or set TN_LLAMA_BIN, or put it in ~/.technode/llama/.\n"
-             "        NVIDIA build: https://github.com/ggml-org/llama.cpp/releases "
-             "(or build with -DGGML_CUDA=ON).")
     pc_serve = _ensure_pc_serve()
     os.makedirs(MODELS_DIR, exist_ok=True)
     cmd = [sys.executable, pc_serve, "--pull",
            "--provider-id", cfg["provider_id"],
            "--register-token", cfg["register_token"],
-           "--bin", llama, "--models", MODELS_DIR]
+           "--models", MODELS_DIR, "--backend", args.backend]
+
+    if args.backend == "vllm":
+        # 데이터센터 GPU(B200/B300) 경로 — llama-server 불필요, vLLM 파이썬 패키지 사용.
+        if not _vllm_available():
+            _die("vLLM not installed (필요: 데이터센터 GPU 백엔드).\n"
+                 "        설치:  pip install vllm   (CUDA GPU + 드라이버 필요)\n"
+                 "        또는 llama.cpp 백엔드:  technode provider serve --backend llama --llama-server <path>")
+        tp = int(args.tp or 1)
+        cmd += ["--tp", str(tp)]
+        engine_desc = f"vLLM (tensor-parallel={tp})"
+    else:
+        llama = _find_llama(args.llama_server)
+        if not llama:
+            _die("llama-server not found.\n"
+                 "        Point to it:  technode provider serve --llama-server /path/to/llama-server\n"
+                 "        or set TN_LLAMA_BIN, or put it in ~/.technode/llama/.\n"
+                 "        NVIDIA build: https://github.com/ggml-org/llama.cpp/releases")
+        cmd += ["--bin", llama]
+        engine_desc = f"llama.cpp ({llama})"
+
     if args.models:
         cmd += ["--serve-models", args.models]
-    if args.no_inbound:
-        # pull mode doesn't need the inbound server; bind it to localhost only is
-        # not exposed via a flag, so we just note it. (Harmless when unreachable.)
-        pass
-    print(f"starting pull-mode serving: provider={cfg['provider_id']}  llama={llama}")
+    print(f"starting pull-mode serving: provider={cfg['provider_id']}")
+    print(f"  engine={engine_desc}")
     print(f"  broker={BROKER_URL}  models-cache={MODELS_DIR}")
     print("  (Ctrl-C to stop)\n")
     env = dict(os.environ, TN_BROKER=BROKER_URL)
@@ -195,17 +213,21 @@ def cmd_install(args):
     if not cfg.get("register_token"):
         _die("register first: technode provider register")
     tn = shutil.which("technode") or os.path.join(os.path.dirname(sys.executable), "technode")
-    llama = _find_llama(args.llama_server) or "/path/to/llama-server"
     user = os.environ.get("USER", "root")
+    if args.backend == "vllm":
+        exec_args = f"provider serve --backend vllm --tp {int(args.tp or 1)}"
+    else:
+        llama = _find_llama(args.llama_server) or "/path/to/llama-server"
+        exec_args = f"provider serve --backend llama --llama-server {llama}"
     unit = f"""[Unit]
-Description=TechNode provider (pull-mode serving)
+Description=TechNode provider (pull-mode serving, {args.backend})
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User={user}
-ExecStart={tn} provider serve --llama-server {llama}
+ExecStart={tn} {exec_args}
 Restart=always
 RestartSec=5
 Environment=TN_BROKER={BROKER_URL}
@@ -232,9 +254,12 @@ def add_parser(sub):
     s.set_defaults(func=cmd_register)
 
     s = psub.add_parser("serve", help="serve models in pull mode (outbound-only, NAT-friendly)")
-    s.add_argument("--llama-server", help="path to the llama-server binary")
+    s.add_argument("--backend", default="llama", choices=["llama", "vllm"],
+                   help="llama=llama.cpp/GGUF(소비자·엣지 GPU), vllm=데이터센터 GPU(B200/B300) 멀티GPU")
+    s.add_argument("--tp", type=int, default=1,
+                   help="vLLM tensor-parallel size (한 모델을 N개 GPU에 분산; B200x8이면 8)")
+    s.add_argument("--llama-server", help="path to the llama-server binary (llama 백엔드)")
     s.add_argument("--models", help="comma-separated catalog ids to advertise (default: auto by VRAM)")
-    s.add_argument("--no-inbound", action="store_true", help="pull only (no inbound serving)")
     s.set_defaults(func=cmd_serve)
 
     s = psub.add_parser("status", help="show registration + approval + llama-server")
@@ -242,6 +267,8 @@ def add_parser(sub):
     s.set_defaults(func=cmd_status)
 
     s = psub.add_parser("install", help="print a systemd unit for boot persistence")
+    s.add_argument("--backend", default="llama", choices=["llama", "vllm"])
+    s.add_argument("--tp", type=int, default=1)
     s.add_argument("--llama-server", help="path to the llama-server binary")
     s.set_defaults(func=cmd_install)
 
